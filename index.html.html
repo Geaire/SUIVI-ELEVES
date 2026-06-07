@@ -4,36 +4,41 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Suivi Élèves — Auto-École</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1f3a">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'DM Sans', sans-serif; background: #1a1f3a; min-height: 100vh; padding: 16px; }
-  h1 { text-align: center; color: white; font-size: 17px; font-weight: 500; margin-bottom: 14px; opacity: .7; letter-spacing: .05em; }
+  h1 { text-align: center; color: white; font-size: 17px; font-weight: 500; margin-bottom: 6px; opacity: .7; letter-spacing: .05em; }
+
+  #syncStatus {
+    text-align: center; margin-bottom: 12px;
+    font-size: 11px; color: rgba(255,255,255,.5);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #888; flex-shrink: 0; }
+  .sync-dot.ok    { background: #2d7a4f; }
+  .sync-dot.warn  { background: #d4a017; }
+  .sync-dot.error { background: #c0392b; }
+  .sync-dot.syncing { background: #4a7fc1; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
   .page { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
   .col-wrap { display: flex; flex-direction: column; gap: 12px; }
-
   .col { border-radius: 14px; padding: 14px 12px 16px; }
   .col-b2  { background: #fef3c7; }
   .col-b1  { background: #c8dff5; }
   .col-etg { background: #d1f5d3; }
   .col-ann { background: #ffffff; border: 1px solid #ddd; }
 
-  .col-title {
-    font-size: 14px; font-weight: 700; color: #1a1a1a;
-    margin-bottom: 10px; padding-bottom: 6px;
-    border-bottom: 1.5px solid rgba(0,0,0,0.12);
-    outline: none; border-radius: 4px; cursor: pointer;
-  }
+  .col-title { font-size: 14px; font-weight: 700; color: #1a1a1a; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1.5px solid rgba(0,0,0,0.12); outline: none; border-radius: 4px; cursor: pointer; }
   .col-title:hover { background: rgba(0,0,0,0.05); }
   .col-title:focus { background: rgba(255,255,255,0.7); padding: 2px 4px; }
 
   .sep { height: 1px; background: rgba(0,0,0,0.18); margin: 7px 0; }
 
-  .eleve {
-    display: flex; align-items: center; gap: 6px;
-    padding: 3px 2px; border-radius: 6px; transition: background .1s;
-  }
+  .eleve { display: flex; align-items: center; gap: 6px; padding: 3px 2px; border-radius: 6px; transition: background .1s; }
   .eleve:hover { background: rgba(0,0,0,0.05); }
   .eleve.dragging { opacity: .4; }
   .eleve.drag-over { border-top: 2px solid #4a7fc1; }
@@ -41,12 +46,7 @@
 
   .drag-handle { color: #bbb; font-size: 13px; cursor: grab; user-select: none; flex-shrink: 0; }
 
-  .eleve input[type=checkbox] {
-    appearance: none; -webkit-appearance: none;
-    width: 16px; height: 16px; min-width: 16px;
-    border: 1.5px solid rgba(0,0,0,0.3); border-radius: 4px;
-    background: white; cursor: pointer; position: relative;
-  }
+  .eleve input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 16px; height: 16px; min-width: 16px; border: 1.5px solid rgba(0,0,0,0.3); border-radius: 4px; background: white; cursor: pointer; position: relative; }
   .eleve input[type=checkbox]:checked { background: #555; border-color: #555; }
   .eleve input[type=checkbox]:checked::after { content:'✓'; position:absolute; color:white; font-size:10px; top:50%; left:50%; transform:translate(-50%,-50%); }
 
@@ -54,58 +54,46 @@
   .label.rouge { color: #c0392b; font-weight: 500; }
   .label.vert  { color: #1a7a2e; font-weight: 500; }
 
-  /* 3 ronds couleur */
   .cbts { display: flex; gap: 3px; flex-shrink: 0; }
-  .cbt { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #aaa; cursor: pointer; transition: opacity .15s; }
+  .cbt { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #aaa; cursor: pointer; }
   .cbt-noir  { background: #333; }
   .cbt-rouge { background: #c0392b; }
   .cbt-vert  { background: #1a7a2e; }
   .cbt.actif { border-color: #333; opacity: 1 !important; }
   .cbt:not(.actif) { opacity: 0.3; }
 
-  /* BOUTONS */
   .actions { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
   .btn { padding: 8px 14px; border-radius: 8px; border: none; font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
   .btn:hover { opacity: .85; }
-  .btn-b1  { background: #4a7fc1; color: white; }
-  .btn-b2  { background: #d4a017; color: white; }
-  .btn-etg { background: #2d7a4f; color: white; }
-  .btn-ann { background: #888; color: white; }
-  .btn-csv { background: #555; color: white; }
+  .btn-b1   { background: #4a7fc1; color: white; }
+  .btn-b2   { background: #d4a017; color: white; }
+  .btn-etg  { background: #2d7a4f; color: white; }
+  .btn-ann  { background: #888; color: white; }
+  .btn-sync { background: #4a7fc1; color: white; }
+  .btn-csv  { background: #555; color: white; }
   .btn-reset { background: rgba(255,255,255,.15); color: white; }
 
-  /* MODAL */
   .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; align-items:center; justify-content:center; }
   .overlay.open { display:flex; }
   .modal { background:white; border-radius:14px; padding:22px; width:460px; max-width:95vw; max-height:90vh; overflow-y:auto; }
   .modal h2 { font-size:15px; margin-bottom:10px; }
   .modal label { display:block; font-size:12px; color:#666; margin-bottom:4px; margin-top:10px; }
   .modal input[type=text] { width:100%; padding:9px 10px; border:1px solid #ccc; border-radius:6px; font-family:inherit; font-size:13px; }
-
-  .hint-box {
-    background:#f5f5f5; border-radius:8px; padding:10px 12px;
-    margin-top:10px; font-size:11.5px; color:#444; line-height:1.8;
-    outline:none; cursor:text;
-  }
+  .hint-box { background:#f5f5f5; border-radius:8px; padding:10px 12px; margin-top:10px; font-size:11.5px; color:#444; line-height:1.8; outline:none; cursor:text; }
   .hint-box:focus { background:#fff; border:1px solid #bbb; }
-
-  .modal-footer { margin-top:16px; display:flex; gap:8px; justify-content:flex-end; align-items:center; }
-  .btn-ok     { background:#4a7fc1; color:white; }
+  .modal-footer { margin-top:16px; display:flex; gap:8px; justify-content:flex-end; }
+  .btn-ok { background:#4a7fc1; color:white; }
   .btn-cancel { background:#eee; color:#333; }
-  .btn-del    { background:#c0392b; color:white; display:none; }
+  .btn-del { background:#c0392b; color:white; display:none; }
 
   @media (max-width:640px) { .page { grid-template-columns:1fr; } }
-  @media print {
-    body{background:white;padding:8px;} h1{color:#333;}
-    .actions,.drag-handle,.cbts{display:none;}
-    .col-b2{background:#fef9e0;} .col-b1{background:#dbeeff;}
-    .col-etg{background:#e5fce6;} .col-ann{background:#fff;}
-  }
+  @media print { body{background:white;} h1{color:#333;} .actions,.drag-handle,.cbts,#syncStatus{display:none;} .col-b2{background:#fef9e0;} .col-b1{background:#dbeeff;} .col-etg{background:#e5fce6;} .col-ann{background:#fff;} }
 </style>
 </head>
 <body>
 
 <h1>AUTO-ÉCOLE — SUIVI ÉLÈVES</h1>
+<div id="syncStatus"><div class="sync-dot" id="syncDot"></div><span id="syncText">Chargement…</span></div>
 
 <div class="page">
   <div class="col-wrap">
@@ -131,15 +119,15 @@
 </div>
 
 <div class="actions">
-  <button class="btn btn-b2"  onclick="openAdd('b2')">+ B+/AE Ext.</button>
-  <button class="btn btn-b1"  onclick="openAdd('b1')">+ B1</button>
-  <button class="btn btn-etg" onclick="openAdd('etg')">+ ETG</button>
-  <button class="btn btn-ann" onclick="openAdd('ann')">+ Ann</button>
-  <button class="btn btn-csv" onclick="exportCSV()">⬇ Export CSV</button>
-  <button class="btn btn-reset" onclick="resetChecks()">☐ Décocher tout</button>
+  <button class="btn btn-b2"   onclick="openAdd('b2')">+ B+/AE Ext.</button>
+  <button class="btn btn-b1"   onclick="openAdd('b1')">+ B1</button>
+  <button class="btn btn-etg"  onclick="openAdd('etg')">+ ETG</button>
+  <button class="btn btn-ann"  onclick="openAdd('ann')">+ Ann</button>
+  <button class="btn btn-sync" onclick="syncNow()">☁ Sync Drive</button>
+  <button class="btn btn-csv"  onclick="exportCSV()">⬇ CSV</button>
+  <button class="btn btn-reset" onclick="resetChecks()">☐ Décocher</button>
 </div>
 
-<!-- MODAL -->
 <div class="overlay" id="overlay">
   <div class="modal">
     <h2 id="modalTitle">Ajouter un élève</h2>
@@ -148,20 +136,44 @@
     <div class="hint-box" id="legendeBox" contenteditable="true" onblur="saveLegend()"></div>
     <div class="modal-footer">
       <button class="btn btn-cancel" onclick="closeModal()">Annuler</button>
-      <button class="btn btn-del"    id="btnDel" onclick="supprimerEleve()">🗑 Supprimer</button>
-      <button class="btn btn-ok"     onclick="saveEleve()">Enregistrer</button>
+      <button class="btn btn-del" id="btnDel" onclick="supprimerEleve()">🗑 Supprimer</button>
+      <button class="btn btn-ok" onclick="saveEleve()">Enregistrer</button>
     </div>
   </div>
 </div>
 
 <script>
+// ══════════════════════════════════
+//  CONFIG GOOGLE DRIVE
+// ══════════════════════════════════
+const CLIENT_ID = '928087007706-frh5r7t07hepa65o3ba4kls9aon46im4.apps.googleusercontent.com';
+const API_KEY   = 'AIzaSyDWPcoTQ8Ga-K-ACyAMbALkQ7u4E0GYX1E';
+const SCOPES    = 'https://www.googleapis.com/auth/drive.file';
+const FILE_NAME = 'suivi-eleves-data.json';
+const FOLDER_NM = 'ELEVES';
+
+let gapiReady = false;
+let tokenClient = null;
+let accessToken = null;
+let driveFileId = null;
+let driveFolderId = null;
+let pendingSync = false;
+
+// ══════════════════════════════════
+//  DONNÉES
+// ══════════════════════════════════
 const LOCAL_KEY = 'ae_v6';
 let data = [];
 let targetCol = 'b1';
 let editIdx = null;
 let dragSrcIdx = null;
 
-// ── INIT ──
+function setSync(state, text) {
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot ' + state;
+  document.getElementById('syncText').textContent = text;
+}
+
 function load() {
   try { const r = localStorage.getItem(LOCAL_KEY); data = r ? JSON.parse(r) : getDefaults(); }
   catch(e) { data = getDefaults(); }
@@ -169,11 +181,20 @@ function load() {
     const t = localStorage.getItem('title_'+c);
     if (t) document.getElementById('t_'+c).textContent = t;
   });
-  // Légende
   const leg = localStorage.getItem('ae_legende');
-  const box = document.getElementById('legendeBox');
-  box.innerHTML = leg || defaultLegend();
+  document.getElementById('legendeBox').innerHTML = leg || defaultLegend();
 }
+
+function saveLocal() {
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+  pendingSync = true;
+  // Auto-sync si connecté
+  if (accessToken) autoSync();
+}
+
+function saveTitle(el, key) { localStorage.setItem('title_'+key, el.textContent); }
+function saveLegend() { localStorage.setItem('ae_legende', document.getElementById('legendeBox').innerHTML); }
+
 function defaultLegend() {
   return '<b>Format :</b> @ (T) BM NOM Prénom (ETG) date niveau<br>'
     + '1. <b>@</b> = À jour Qualiopi<br>'
@@ -185,52 +206,35 @@ function defaultLegend() {
     + '<span style="color:#c0392b;font-weight:600">● Rouge = Bougeons-Nous ! 47</span><br>'
     + '<span style="color:#1a7a2e;font-weight:600">● Vert = Prioritaire (PA) ou Autres</span>';
 }
-function saveLocal() { localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); }
-function saveTitle(el, key) { localStorage.setItem('title_'+key, el.textContent); }
-function saveLegend() { localStorage.setItem('ae_legende', document.getElementById('legendeBox').innerHTML); }
 
-// ── RENDU ──
+// ══════════════════════════════════
+//  RENDU
+// ══════════════════════════════════
 function renderCol(col, cid) {
   const c = document.getElementById(cid);
   c.innerHTML = '';
   data.filter(e => e.col === col).forEach(e => {
     const gi = data.indexOf(e);
-    if (e.sep) {
-      const s = document.createElement('div'); s.className = 'sep';
-      c.appendChild(s); return;
-    }
+    if (e.sep) { c.appendChild(Object.assign(document.createElement('div'),{className:'sep'})); return; }
     const row = document.createElement('div');
-    row.className = 'eleve' + (e.checked ? ' checked' : '');
-    row.draggable = true;
-    row.dataset.idx = gi;
+    row.className = 'eleve'+(e.checked?' checked':'');
+    row.draggable = true; row.dataset.idx = gi;
     row.addEventListener('dragstart', onDragStart);
-    row.addEventListener('dragend',   onDragEnd);
+    row.addEventListener('dragend', onDragEnd);
 
-    // Poignée
-    const h = document.createElement('span');
-    h.className = 'drag-handle'; h.textContent = '⠿';
-
-    // Checkbox
-    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = e.checked;
-    cb.addEventListener('change', () => { data[gi].checked = cb.checked; saveLocal(); render(); });
-
-    // Label
+    const h = document.createElement('span'); h.className='drag-handle'; h.textContent='⠿';
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked=e.checked;
+    cb.addEventListener('change', () => { data[gi].checked=cb.checked; saveLocal(); render(); });
     const lbl = document.createElement('span');
-    lbl.className = 'label' + (e.couleur && e.couleur !== 'noir' ? ' ' + e.couleur : '');
+    lbl.className = 'label'+(e.couleur&&e.couleur!=='noir'?' '+e.couleur:'');
     lbl.textContent = e.ligne;
     lbl.addEventListener('dblclick', () => openEdit(gi));
 
-    // Ronds couleur
-    const cbts = document.createElement('div'); cbts.className = 'cbts';
+    const cbts = document.createElement('div'); cbts.className='cbts';
     ['noir','rouge','vert'].forEach(clr => {
       const btn = document.createElement('div');
-      btn.className = 'cbt cbt-' + clr + ((e.couleur||'noir') === clr ? ' actif' : '');
-      btn.title = clr.charAt(0).toUpperCase() + clr.slice(1);
-      btn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        data[gi].couleur = clr;
-        saveLocal(); render();
-      });
+      btn.className = 'cbt cbt-'+clr+((e.couleur||'noir')===clr?' actif':'');
+      btn.addEventListener('click', ev => { ev.stopPropagation(); data[gi].couleur=clr; saveLocal(); render(); });
       cbts.appendChild(btn);
     });
 
@@ -238,100 +242,172 @@ function renderCol(col, cid) {
     c.appendChild(row);
   });
 }
-function render() {
-  renderCol('b2','col_b2');
-  renderCol('b1','col_b1');
-  renderCol('etg','col_etg');
-  renderCol('ann','col_ann');
-}
+function render() { renderCol('b2','col_b2'); renderCol('b1','col_b1'); renderCol('etg','col_etg'); renderCol('ann','col_ann'); }
 
-// ── DRAG & DROP ──
-function onDragStart(e) {
-  dragSrcIdx = parseInt(this.dataset.idx);
-  this.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-}
-function onDragEnd() {
-  this.classList.remove('dragging');
-  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-}
-function onDragOver(e) {
-  e.preventDefault();
-  const row = e.target.closest('.eleve');
-  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-  if (row) row.classList.add('drag-over');
-}
+// ══════════════════════════════════
+//  DRAG & DROP
+// ══════════════════════════════════
+function onDragStart(e) { dragSrcIdx=parseInt(this.dataset.idx); this.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; }
+function onDragEnd() { this.classList.remove('dragging'); document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over')); }
+function onDragOver(e) { e.preventDefault(); const row=e.target.closest('.eleve'); document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over')); if(row)row.classList.add('drag-over'); }
 function onDrop(e, col) {
-  e.preventDefault();
-  if (dragSrcIdx === null) return;
-  const row = e.target.closest('.eleve');
-  let targetIdx = row ? parseInt(row.dataset.idx) : data.reduce((last,x,i) => x.col===col ? i : last, -1) + 1;
-  const item = data.splice(dragSrcIdx, 1)[0];
-  item.col = col;
-  const newTarget = targetIdx > dragSrcIdx ? targetIdx - 1 : targetIdx;
-  data.splice(newTarget, 0, item);
-  dragSrcIdx = null;
-  saveLocal(); render();
+  e.preventDefault(); if(dragSrcIdx===null)return;
+  const row=e.target.closest('.eleve');
+  let ti=row?parseInt(row.dataset.idx):data.reduce((l,x,i)=>x.col===col?i:l,-1)+1;
+  const item=data.splice(dragSrcIdx,1)[0]; item.col=col;
+  const nt=ti>dragSrcIdx?ti-1:ti; data.splice(nt,0,item);
+  dragSrcIdx=null; saveLocal(); render();
 }
 
-// ── MODAL ──
+// ══════════════════════════════════
+//  MODAL
+// ══════════════════════════════════
 function openAdd(col) {
-  targetCol = col; editIdx = null;
-  document.getElementById('modalTitle').textContent = 'Ajouter — ' + document.getElementById('t_'+col).textContent;
-  document.getElementById('fLigne').value = '';
-  document.getElementById('btnDel').style.display = 'none';
+  targetCol=col; editIdx=null;
+  document.getElementById('modalTitle').textContent='Ajouter — '+document.getElementById('t_'+col).textContent;
+  document.getElementById('fLigne').value='';
+  document.getElementById('btnDel').style.display='none';
   document.getElementById('overlay').classList.add('open');
-  setTimeout(() => document.getElementById('fLigne').focus(), 100);
+  setTimeout(()=>document.getElementById('fLigne').focus(),100);
 }
 function openEdit(idx) {
-  editIdx = idx; targetCol = data[idx].col;
-  document.getElementById('modalTitle').textContent = "Modifier l'élève";
-  document.getElementById('fLigne').value = data[idx].ligne;
-  document.getElementById('btnDel').style.display = 'inline-block';
+  editIdx=idx; targetCol=data[idx].col;
+  document.getElementById('modalTitle').textContent="Modifier l'élève";
+  document.getElementById('fLigne').value=data[idx].ligne;
+  document.getElementById('btnDel').style.display='inline-block';
   document.getElementById('overlay').classList.add('open');
-  setTimeout(() => document.getElementById('fLigne').focus(), 100);
+  setTimeout(()=>document.getElementById('fLigne').focus(),100);
 }
-function closeModal() { document.getElementById('overlay').classList.remove('open'); editIdx = null; }
+function closeModal() { document.getElementById('overlay').classList.remove('open'); editIdx=null; }
 function saveEleve() {
-  const ligne = document.getElementById('fLigne').value.trim();
-  if (!ligne) { alert('Écris la ligne de l\'élève.'); return; }
-  if (editIdx !== null) {
-    data[editIdx].ligne = ligne;
-  } else {
-    const lastIdx = data.reduce((last, x, i) => x.col === targetCol ? i : last, -1);
-    data.splice(lastIdx + 1, 0, { col: targetCol, ligne, checked: false, couleur: 'noir' });
-  }
+  const ligne=document.getElementById('fLigne').value.trim();
+  if(!ligne){alert("Écris la ligne de l'élève.");return;}
+  if(editIdx!==null){data[editIdx].ligne=ligne;}
+  else{const li=data.reduce((l,x,i)=>x.col===targetCol?i:l,-1);data.splice(li+1,0,{col:targetCol,ligne,checked:false,couleur:'noir'});}
   saveLocal(); closeModal(); render();
 }
 function supprimerEleve() {
-  if (!confirm('Supprimer cet élève ?')) return;
-  data.splice(editIdx, 1);
-  saveLocal(); closeModal(); render();
+  if(!confirm('Supprimer cet élève ?'))return;
+  data.splice(editIdx,1); saveLocal(); closeModal(); render();
+}
+function resetChecks() { if(!confirm('Décocher tous ?'))return; data.forEach(e=>e.checked=false); saveLocal(); render(); }
+function exportCSV() {
+  const h=['Colonne','Ligne','Couleur','Coché'];
+  const r=data.filter(e=>!e.sep&&e.ligne).map(e=>[e.col,e.ligne,e.couleur||'noir',e.checked?'Oui':'']);
+  const csv=[h,...r].map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(';')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download='eleves-'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
 }
 
-// ── AUTRES ──
-function resetChecks() {
-  if (!confirm('Décocher tous les élèves ?')) return;
-  data.forEach(e => e.checked = false); saveLocal(); render();
+// ══════════════════════════════════
+//  GOOGLE DRIVE
+// ══════════════════════════════════
+function initGapi() {
+  gapi.load('client', async () => {
+    await gapi.client.init({ apiKey: API_KEY, discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
+    gapiReady = true;
+    initGis();
+  });
 }
-function exportCSV() {
-  const h = ['Colonne','Ligne','Couleur','Coché'];
-  const r = data.filter(e => !e.sep && e.ligne).map(e => [e.col, e.ligne, e.couleur||'noir', e.checked?'Oui':'']);
-  const csv = [h,...r].map(r => r.map(c => '"'+String(c||'').replace(/"/g,'""')+'"').join(';')).join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'}));
-  a.download = 'eleves-'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+
+function initGis() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: async (resp) => {
+      if (resp.error) { setSync('error', 'Connexion refusée'); return; }
+      accessToken = resp.access_token;
+      gapi.client.setToken({ access_token: accessToken });
+      await chargerDrive();
+    }
+  });
+  // Tenter connexion silencieuse
+  tokenClient.requestAccessToken({ prompt: '' });
 }
+
+async function getFolderId() {
+  if (driveFolderId) return driveFolderId;
+  const res = await gapi.client.drive.files.list({ q:`name='${FOLDER_NM}' and mimeType='application/vnd.google-apps.folder' and trashed=false`, fields:'files(id)' });
+  if (res.result.files.length > 0) { driveFolderId=res.result.files[0].id; return driveFolderId; }
+  const cr = await gapi.client.drive.files.create({ resource:{name:FOLDER_NM,mimeType:'application/vnd.google-apps.folder'},fields:'id' });
+  driveFolderId=cr.result.id; return driveFolderId;
+}
+
+async function getFileId() {
+  if (driveFileId) return driveFileId;
+  const fid = await getFolderId();
+  const res = await gapi.client.drive.files.list({ q:`name='${FILE_NAME}' and '${fid}' in parents and trashed=false`, fields:'files(id,modifiedTime)' });
+  if (res.result.files.length > 0) { driveFileId=res.result.files[0].id; return driveFileId; }
+  return null;
+}
+
+async function chargerDrive() {
+  if (!gapiReady || !accessToken) { setSync('warn', 'Hors connexion — données locales'); return; }
+  setSync('syncing', 'Chargement depuis Drive…');
+  try {
+    const fid = await getFileId();
+    if (!fid) { setSync('ok', 'Nouveau — données locales'); return; }
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?alt=media`, { headers:{Authorization:'Bearer '+accessToken} });
+    const driveData = await res.json();
+    // Fusionner : Drive gagne sur les conflits
+    data = driveData;
+    saveLocal();
+    render();
+    pendingSync = false;
+    setSync('ok', 'Synchronisé — '+new Date().toLocaleTimeString('fr-FR'));
+  } catch(e) { setSync('warn', 'Hors connexion — données locales'); }
+}
+
+async function sauvegarderDrive() {
+  if (!gapiReady || !accessToken) { setSync('warn', 'Non connecté'); return; }
+  setSync('syncing', 'Sauvegarde…');
+  try {
+    const fid = await getFolderId();
+    const existId = await getFileId();
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const form = new FormData();
+    if (existId) {
+      form.append('metadata', new Blob([JSON.stringify({name:FILE_NAME})],{type:'application/json'}));
+      form.append('file', blob);
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existId}?uploadType=multipart`, { method:'PATCH', headers:{Authorization:'Bearer '+accessToken}, body:form });
+    } else {
+      form.append('metadata', new Blob([JSON.stringify({name:FILE_NAME,parents:[fid]})],{type:'application/json'}));
+      form.append('file', blob);
+      const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method:'POST', headers:{Authorization:'Bearer '+accessToken}, body:form });
+      const j = await r.json(); driveFileId=j.id;
+    }
+    pendingSync = false;
+    setSync('ok', 'Sauvegardé — '+new Date().toLocaleTimeString('fr-FR'));
+  } catch(e) { setSync('warn', 'Erreur — réessai plus tard'); }
+}
+
+let syncTimer = null;
+function autoSync() {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(sauvegarderDrive, 3000);
+}
+
+function syncNow() {
+  if (!accessToken) {
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  } else {
+    sauvegarderDrive();
+  }
+}
+
+// Sync au retour en ligne
+window.addEventListener('online', () => { if(pendingSync && accessToken) sauvegarderDrive(); });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeModal();
-  if (e.key === 'Enter' && document.getElementById('overlay').classList.contains('open')) saveEleve();
+  if(e.key==='Escape') closeModal();
+  if(e.key==='Enter' && document.getElementById('overlay').classList.contains('open')) saveEleve();
 });
-document.getElementById('overlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('overlay')) closeModal();
-});
+document.getElementById('overlay').addEventListener('click', e => { if(e.target===document.getElementById('overlay')) closeModal(); });
 
-// ── DONNÉES ──
+// ══════════════════════════════════
+//  DONNÉES PAR DÉFAUT
+// ══════════════════════════════════
 function getDefaults() { return [
   {col:'b2',ligne:'(T) BEA DAENENS Rudy **',checked:false,couleur:'noir'},
   {col:'b2',ligne:'(T) BEA DELIS Amelie 19/06/24 *',checked:false,couleur:'noir'},
@@ -444,7 +520,18 @@ function getDefaults() { return [
   {col:'ann',ligne:'LEGOURD Bruno',checked:false,couleur:'noir'},
 ];}
 
+// ══════════════════════════════════
+//  DÉMARRAGE
+// ══════════════════════════════════
 load(); render();
+
+if (navigator.onLine) {
+  const s1=document.createElement('script'); s1.src='https://apis.google.com/js/api.js'; s1.onload=()=>initGapi(); document.head.appendChild(s1);
+  const s2=document.createElement('script'); s2.src='https://accounts.google.com/gsi/client'; document.head.appendChild(s2);
+  setSync('syncing','Connexion…');
+} else {
+  setSync('warn','Hors connexion — données locales');
+}
 </script>
 </body>
 </html>
