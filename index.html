@@ -187,6 +187,7 @@ function load() {
 
 function saveLocal() {
   localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+  localStorage.setItem(LOCAL_KEY+'_ts', Date.now());
   pendingSync = true;
   if (accessToken) autoSync();
 }
@@ -341,18 +342,28 @@ async function getFileId() {
 }
 
 async function chargerDrive() {
-  // Si données locales existent déjà, on uploade vers Drive au lieu de télécharger
-  const localExists = localStorage.getItem(LOCAL_KEY);
-  if (localExists && pendingSync) { await sauvegarderDrive(); return; }
   if (!gapiReady || !accessToken) { setSync('warn', 'Hors connexion — données locales'); return; }
+  // Si modifs locales en attente, on envoie vers Drive (local gagne)
+  if (pendingSync) { await sauvegarderDrive(); return; }
   setSync('syncing', 'Chargement depuis Drive…');
   try {
     const fid = await getFileId();
     if (!fid) { setSync('ok', 'Nouveau — données locales'); return; }
+    // Comparer timestamps : local vs Drive
+    const localTs = parseInt(localStorage.getItem(LOCAL_KEY+'_ts') || '0');
+    const metaRes = await gapi.client.drive.files.get({ fileId: fid, fields: 'modifiedTime' });
+    const driveTs = new Date(metaRes.result.modifiedTime).getTime();
+    if (localTs >= driveTs) {
+      // Local plus récent ou égal : on envoie vers Drive
+      await sauvegarderDrive();
+      return;
+    }
+    // Drive plus récent : on charge Drive
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?alt=media`, { headers:{Authorization:'Bearer '+accessToken} });
     const driveData = await res.json();
     data = driveData;
-    saveLocal();
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+    localStorage.setItem(LOCAL_KEY+'_ts', driveTs);
     render();
     pendingSync = false;
     setSync('ok', 'Synchronisé — '+new Date().toLocaleTimeString('fr-FR'));
