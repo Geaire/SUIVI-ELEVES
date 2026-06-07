@@ -341,6 +341,9 @@ async function getFileId() {
 }
 
 async function chargerDrive() {
+  // Si données locales existent déjà, on uploade vers Drive au lieu de télécharger
+  const localExists = localStorage.getItem(LOCAL_KEY);
+  if (localExists && pendingSync) { await sauvegarderDrive(); return; }
   if (!gapiReady || !accessToken) { setSync('warn', 'Hors connexion — données locales'); return; }
   setSync('syncing', 'Chargement depuis Drive…');
   try {
