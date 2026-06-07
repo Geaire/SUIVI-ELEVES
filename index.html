@@ -188,7 +188,6 @@ function load() {
 function saveLocal() {
   localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
   pendingSync = true;
-  // Auto-sync si connecté
   if (accessToken) autoSync();
 }
 
@@ -322,7 +321,6 @@ function initGis() {
       await chargerDrive();
     }
   });
-  // Tenter connexion silencieuse
   tokenClient.requestAccessToken({ prompt: '' });
 }
 
@@ -350,7 +348,6 @@ async function chargerDrive() {
     if (!fid) { setSync('ok', 'Nouveau — données locales'); return; }
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fid}?alt=media`, { headers:{Authorization:'Bearer '+accessToken} });
     const driveData = await res.json();
-    // Fusionner : Drive gagne sur les conflits
     data = driveData;
     saveLocal();
     render();
@@ -396,7 +393,6 @@ function syncNow() {
   }
 }
 
-// Sync au retour en ligne
 window.addEventListener('online', () => { if(pendingSync && accessToken) sauvegarderDrive(); });
 
 document.addEventListener('keydown', e => {
@@ -531,6 +527,13 @@ if (navigator.onLine) {
   setSync('syncing','Connexion…');
 } else {
   setSync('warn','Hors connexion — données locales');
+}
+
+// ══════════════════════════════════
+//  SERVICE WORKER (mode hors connexion)
+// ══════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 </script>
 </body>

@@ -1,0 +1,6 @@
+// ══════════════════════════════════
+//  SERVICE WORKER (mode hors connexion)
+// ══════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
