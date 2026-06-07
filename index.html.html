@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi Élèves — Auto-École</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #1a1f3a; min-height: 100vh; padding: 16px; }
+  h1 { text-align: center; color: white; font-size: 17px; font-weight: 500; margin-bottom: 14px; opacity: .7; letter-spacing: .05em; }
+
+  .page { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .col-wrap { display: flex; flex-direction: column; gap: 12px; }
+
+  .col { border-radius: 14px; padding: 14px 12px 16px; }
+  .col-b2  { background: #fef3c7; }
+  .col-b1  { background: #c8dff5; }
+  .col-etg { background: #d1f5d3; }
+  .col-ann { background: #ffffff; border: 1px solid #ddd; }
+
+  .col-title {
+    font-size: 14px; font-weight: 700; color: #1a1a1a;
+    margin-bottom: 10px; padding-bottom: 6px;
+    border-bottom: 1.5px solid rgba(0,0,0,0.12);
+    outline: none; border-radius: 4px; cursor: pointer;
+  }
+  .col-title:hover { background: rgba(0,0,0,0.05); }
+  .col-title:focus { background: rgba(255,255,255,0.7); padding: 2px 4px; }
+
+  .sep { height: 1px; background: rgba(0,0,0,0.18); margin: 7px 0; }
+
+  .eleve {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 2px; border-radius: 6px; transition: background .1s;
+  }
+  .eleve:hover { background: rgba(0,0,0,0.05); }
+  .eleve.dragging { opacity: .4; }
+  .eleve.drag-over { border-top: 2px solid #4a7fc1; }
+  .eleve.checked .label { opacity: .4; text-decoration: line-through; }
+
+  .drag-handle { color: #bbb; font-size: 13px; cursor: grab; user-select: none; flex-shrink: 0; }
+
+  .eleve input[type=checkbox] {
+    appearance: none; -webkit-appearance: none;
+    width: 16px; height: 16px; min-width: 16px;
+    border: 1.5px solid rgba(0,0,0,0.3); border-radius: 4px;
+    background: white; cursor: pointer; position: relative;
+  }
+  .eleve input[type=checkbox]:checked { background: #555; border-color: #555; }
+  .eleve input[type=checkbox]:checked::after { content:'✓'; position:absolute; color:white; font-size:10px; top:50%; left:50%; transform:translate(-50%,-50%); }
+
+  .label { font-size: 13px; color: #1a1a1a; line-height: 1.35; flex: 1; cursor: pointer; }
+  .label.rouge { color: #c0392b; font-weight: 500; }
+  .label.vert  { color: #1a7a2e; font-weight: 500; }
+
+  /* 3 ronds couleur */
+  .cbts { display: flex; gap: 3px; flex-shrink: 0; }
+  .cbt { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #aaa; cursor: pointer; transition: opacity .15s; }
+  .cbt-noir  { background: #333; }
+  .cbt-rouge { background: #c0392b; }
+  .cbt-vert  { background: #1a7a2e; }
+  .cbt.actif { border-color: #333; opacity: 1 !important; }
+  .cbt:not(.actif) { opacity: 0.3; }
+
+  /* BOUTONS */
+  .actions { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .btn { padding: 8px 14px; border-radius: 8px; border: none; font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
+  .btn:hover { opacity: .85; }
+  .btn-b1  { background: #4a7fc1; color: white; }
+  .btn-b2  { background: #d4a017; color: white; }
+  .btn-etg { background: #2d7a4f; color: white; }
+  .btn-ann { background: #888; color: white; }
+  .btn-csv { background: #555; color: white; }
+  .btn-reset { background: rgba(255,255,255,.15); color: white; }
+
+  /* MODAL */
+  .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; align-items:center; justify-content:center; }
+  .overlay.open { display:flex; }
+  .modal { background:white; border-radius:14px; padding:22px; width:460px; max-width:95vw; max-height:90vh; overflow-y:auto; }
+  .modal h2 { font-size:15px; margin-bottom:10px; }
+  .modal label { display:block; font-size:12px; color:#666; margin-bottom:4px; margin-top:10px; }
+  .modal input[type=text] { width:100%; padding:9px 10px; border:1px solid #ccc; border-radius:6px; font-family:inherit; font-size:13px; }
+
+  .hint-box {
+    background:#f5f5f5; border-radius:8px; padding:10px 12px;
+    margin-top:10px; font-size:11.5px; color:#444; line-height:1.8;
+    outline:none; cursor:text;
+  }
+  .hint-box:focus { background:#fff; border:1px solid #bbb; }
+
+  .modal-footer { margin-top:16px; display:flex; gap:8px; justify-content:flex-end; align-items:center; }
+  .btn-ok     { background:#4a7fc1; color:white; }
+  .btn-cancel { background:#eee; color:#333; }
+  .btn-del    { background:#c0392b; color:white; display:none; }
+
+  @media (max-width:640px) { .page { grid-template-columns:1fr; } }
+  @media print {
+    body{background:white;padding:8px;} h1{color:#333;}
+    .actions,.drag-handle,.cbts{display:none;}
+    .col-b2{background:#fef9e0;} .col-b1{background:#dbeeff;}
+    .col-etg{background:#e5fce6;} .col-ann{background:#fff;}
+  }
+</style>
+</head>
+<body>
+
+<h1>AUTO-ÉCOLE — SUIVI ÉLÈVES</h1>
+
+<div class="page">
+  <div class="col-wrap">
+    <div class="col col-b2">
+      <div class="col-title" contenteditable="true" onblur="saveTitle(this,'t_b2')" id="t_b2">B+ / AE Ext.</div>
+      <div id="col_b2" ondragover="onDragOver(event)" ondrop="onDrop(event,'b2')"></div>
+    </div>
+    <div class="col col-ann">
+      <div class="col-title" contenteditable="true" onblur="saveTitle(this,'t_ann')" id="t_ann">Dossiers &lt; 2020 Annulations (Poss)</div>
+      <div id="col_ann" ondragover="onDragOver(event)" ondrop="onDrop(event,'ann')"></div>
+    </div>
+  </div>
+  <div class="col-wrap">
+    <div class="col col-b1">
+      <div class="col-title" contenteditable="true" onblur="saveTitle(this,'t_b1')" id="t_b1">B1</div>
+      <div id="col_b1" ondragover="onDragOver(event)" ondrop="onDrop(event,'b1')"></div>
+    </div>
+    <div class="col col-etg">
+      <div class="col-title" contenteditable="true" onblur="saveTitle(this,'t_etg')" id="t_etg">ETG</div>
+      <div id="col_etg" ondragover="onDragOver(event)" ondrop="onDrop(event,'etg')"></div>
+    </div>
+  </div>
+</div>
+
+<div class="actions">
+  <button class="btn btn-b2"  onclick="openAdd('b2')">+ B+/AE Ext.</button>
+  <button class="btn btn-b1"  onclick="openAdd('b1')">+ B1</button>
+  <button class="btn btn-etg" onclick="openAdd('etg')">+ ETG</button>
+  <button class="btn btn-ann" onclick="openAdd('ann')">+ Ann</button>
+  <button class="btn btn-csv" onclick="exportCSV()">⬇ Export CSV</button>
+  <button class="btn btn-reset" onclick="resetChecks()">☐ Décocher tout</button>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="modalTitle">Ajouter un élève</h2>
+    <label>Écris la ligne complète :</label>
+    <input type="text" id="fLigne" placeholder="@ (T) BM DUPONT Marie (ETG) 12/03/25 *">
+    <div class="hint-box" id="legendeBox" contenteditable="true" onblur="saveLegend()"></div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-del"    id="btnDel" onclick="supprimerEleve()">🗑 Supprimer</button>
+      <button class="btn btn-ok"     onclick="saveEleve()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const LOCAL_KEY = 'ae_v6';
+let data = [];
+let targetCol = 'b1';
+let editIdx = null;
+let dragSrcIdx = null;
+
+// ── INIT ──
+function load() {
+  try { const r = localStorage.getItem(LOCAL_KEY); data = r ? JSON.parse(r) : getDefaults(); }
+  catch(e) { data = getDefaults(); }
+  ['b1','b2','etg','ann'].forEach(c => {
+    const t = localStorage.getItem('title_'+c);
+    if (t) document.getElementById('t_'+c).textContent = t;
+  });
+  // Légende
+  const leg = localStorage.getItem('ae_legende');
+  const box = document.getElementById('legendeBox');
+  box.innerHTML = leg || defaultLegend();
+}
+function defaultLegend() {
+  return '<b>Format :</b> @ (T) BM NOM Prénom (ETG) date niveau<br>'
+    + '1. <b>@</b> = À jour Qualiopi<br>'
+    + '2. <b>(T)</b> Traditionnel | <b>(CS)</b> Supervisée | <b>(AAC)</b> Accompagnée<br>'
+    + '3. <b>BM</b> Boîte manuelle | <b>BEA</b> Boîte auto<br>'
+    + '4. <b>NOM Prénom</b><br>'
+    + '5. <b>Date</b> échec examen<br>'
+    + '6. <b>*</b> &nbsp;<b>**</b> &nbsp;<b>***</b> Niveau<br>'
+    + '<span style="color:#c0392b;font-weight:600">● Rouge = Bougeons-Nous ! 47</span><br>'
+    + '<span style="color:#1a7a2e;font-weight:600">● Vert = Prioritaire (PA) ou Autres</span>';
+}
+function saveLocal() { localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); }
+function saveTitle(el, key) { localStorage.setItem('title_'+key, el.textContent); }
+function saveLegend() { localStorage.setItem('ae_legende', document.getElementById('legendeBox').innerHTML); }
+
+// ── RENDU ──
+function renderCol(col, cid) {
+  const c = document.getElementById(cid);
+  c.innerHTML = '';
+  data.filter(e => e.col === col).forEach(e => {
+    const gi = data.indexOf(e);
+    if (e.sep) {
+      const s = document.createElement('div'); s.className = 'sep';
+      c.appendChild(s); return;
+    }
+    const row = document.createElement('div');
+    row.className = 'eleve' + (e.checked ? ' checked' : '');
+    row.draggable = true;
+    row.dataset.idx = gi;
+    row.addEventListener('dragstart', onDragStart);
+    row.addEventListener('dragend',   onDragEnd);
+
+    // Poignée
+    const h = document.createElement('span');
+    h.className = 'drag-handle'; h.textContent = '⠿';
+
+    // Checkbox
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = e.checked;
+    cb.addEventListener('change', () => { data[gi].checked = cb.checked; saveLocal(); render(); });
+
+    // Label
+    const lbl = document.createElement('span');
+    lbl.className = 'label' + (e.couleur && e.couleur !== 'noir' ? ' ' + e.couleur : '');
+    lbl.textContent = e.ligne;
+    lbl.addEventListener('dblclick', () => openEdit(gi));
+
+    // Ronds couleur
+    const cbts = document.createElement('div'); cbts.className = 'cbts';
+    ['noir','rouge','vert'].forEach(clr => {
+      const btn = document.createElement('div');
+      btn.className = 'cbt cbt-' + clr + ((e.couleur||'noir') === clr ? ' actif' : '');
+      btn.title = clr.charAt(0).toUpperCase() + clr.slice(1);
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        data[gi].couleur = clr;
+        saveLocal(); render();
+      });
+      cbts.appendChild(btn);
+    });
+
+    row.appendChild(h); row.appendChild(cb); row.appendChild(lbl); row.appendChild(cbts);
+    c.appendChild(row);
+  });
+}
+function render() {
+  renderCol('b2','col_b2');
+  renderCol('b1','col_b1');
+  renderCol('etg','col_etg');
+  renderCol('ann','col_ann');
+}
+
+// ── DRAG & DROP ──
+function onDragStart(e) {
+  dragSrcIdx = parseInt(this.dataset.idx);
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragEnd() {
+  this.classList.remove('dragging');
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+function onDragOver(e) {
+  e.preventDefault();
+  const row = e.target.closest('.eleve');
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  if (row) row.classList.add('drag-over');
+}
+function onDrop(e, col) {
+  e.preventDefault();
+  if (dragSrcIdx === null) return;
+  const row = e.target.closest('.eleve');
+  let targetIdx = row ? parseInt(row.dataset.idx) : data.reduce((last,x,i) => x.col===col ? i : last, -1) + 1;
+  const item = data.splice(dragSrcIdx, 1)[0];
+  item.col = col;
+  const newTarget = targetIdx > dragSrcIdx ? targetIdx - 1 : targetIdx;
+  data.splice(newTarget, 0, item);
+  dragSrcIdx = null;
+  saveLocal(); render();
+}
+
+// ── MODAL ──
+function openAdd(col) {
+  targetCol = col; editIdx = null;
+  document.getElementById('modalTitle').textContent = 'Ajouter — ' + document.getElementById('t_'+col).textContent;
+  document.getElementById('fLigne').value = '';
+  document.getElementById('btnDel').style.display = 'none';
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(() => document.getElementById('fLigne').focus(), 100);
+}
+function openEdit(idx) {
+  editIdx = idx; targetCol = data[idx].col;
+  document.getElementById('modalTitle').textContent = "Modifier l'élève";
+  document.getElementById('fLigne').value = data[idx].ligne;
+  document.getElementById('btnDel').style.display = 'inline-block';
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(() => document.getElementById('fLigne').focus(), 100);
+}
+function closeModal() { document.getElementById('overlay').classList.remove('open'); editIdx = null; }
+function saveEleve() {
+  const ligne = document.getElementById('fLigne').value.trim();
+  if (!ligne) { alert('Écris la ligne de l\'élève.'); return; }
+  if (editIdx !== null) {
+    data[editIdx].ligne = ligne;
+  } else {
+    const lastIdx = data.reduce((last, x, i) => x.col === targetCol ? i : last, -1);
+    data.splice(lastIdx + 1, 0, { col: targetCol, ligne, checked: false, couleur: 'noir' });
+  }
+  saveLocal(); closeModal(); render();
+}
+function supprimerEleve() {
+  if (!confirm('Supprimer cet élève ?')) return;
+  data.splice(editIdx, 1);
+  saveLocal(); closeModal(); render();
+}
+
+// ── AUTRES ──
+function resetChecks() {
+  if (!confirm('Décocher tous les élèves ?')) return;
+  data.forEach(e => e.checked = false); saveLocal(); render();
+}
+function exportCSV() {
+  const h = ['Colonne','Ligne','Couleur','Coché'];
+  const r = data.filter(e => !e.sep && e.ligne).map(e => [e.col, e.ligne, e.couleur||'noir', e.checked?'Oui':'']);
+  const csv = [h,...r].map(r => r.map(c => '"'+String(c||'').replace(/"/g,'""')+'"').join(';')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'}));
+  a.download = 'eleves-'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Enter' && document.getElementById('overlay').classList.contains('open')) saveEleve();
+});
+document.getElementById('overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('overlay')) closeModal();
+});
+
+// ── DONNÉES ──
+function getDefaults() { return [
+  {col:'b2',ligne:'(T) BEA DAENENS Rudy **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BEA DELIS Amelie 19/06/24 *',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BM VERDIER Morgane *',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM OESLICK Manon *',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM BAUER Nolwen',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(AAC) BM GAVA Lena ** (29/08/26) Marmande',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM MACHADO Carolane *',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM MACHADO Elena *',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM FUHRMANN Morgane',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM MOLIE Lou Marie **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM RAMBAULT Zachari',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM LAROCHE Melodie',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BEA PETROVA GUILLE Yelyzaveta',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(AAC) BM AURIOL Louison **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BM TAFFONNEAU Camille',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(AAC) BM LARRIBIERE Romain',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BM MORASSUT Alexis',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM RIGO Gauthier',checked:false,couleur:'noir'},
+  {col:'b2',sep:true},
+  {col:'b2',ligne:'(T) BEA ZENTAR Xavier 29/09/25 ***',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BEA ZIANI Cheryne 29/09/25 ***',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BM DAL COMPARE Andrea 02/10/25 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BM DAIKER Marwa 06/10/25 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BM DEBEHOGNE Lucas 03/02/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BEA BENTAIFOUR Zaza 03/02/2026 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BEA KEMAYOU Huguette 08/02/2026 *',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BEA LOUGHLAM Aziza 13/03/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM DIALLO Mamadou 20/03/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BEA AL NAHLAWI Marah 09/04/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BEA FERREIRA Sandrina 13/04/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BEA JBILOU Ibtissem 13/04/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BM EL MESSARI Firdaws 13/04/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BM DE SOUSA GALLO Tom T 13/04/26 ***',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BEA BARRERE Maeva 24/04/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(AAC) BM DUREAU Lola 30/04/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BM PAGEIX WIETER Mael 05/05/26 ***',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(AAC) BM CAHARD Clarisse 18/05/26',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BM EL HARCHA Mohamed 18/05/26 ***',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM PEREIRA RODRIGUES Joao 27/05/26 ***',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BEA HOUPE Jade 27/05/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM PINON Victoriane 02/06/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(AAC) BM ROCHEFORT Titouan 10/06/26 ***',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BEA AMARAL Nina 10/06/26 *',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(CS) BEA VILLANOVA Margo 11/06/26',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BEA EL HABACH Naim 11/06/26 **',checked:false,couleur:'noir'},
+  {col:'b2',ligne:'(T) BM BOUDRAA Inssaf 15/06/26',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BEA FAUCHART Émilie *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BEA DULAS Marie José (ETG) *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BM ROUSTAN Marine (ETG) *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BM EL AREF Cherine (ETG) **',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(CS) BEA FOURKANE Sephora (ETG) *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BM ZAYNOUNE Ahmed *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BM BOUGRINE Inès (ETG) *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BM RAMDANI Yacine *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'@ (T) BM NAJJAR Inès T (ETG) *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BM EL BOUMEDIANI Samia (ETG) *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(CS) BM BAHAJ Insaf *',checked:true,couleur:'noir'},
+  {col:'b1',ligne:'@ (T) BM DAIKER Ziad **',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(PA) BM BLANCHON Tibalt (ETG) ***',checked:false,couleur:'vert'},
+  {col:'b1',ligne:'@ (AAC) BM PAGEIX WIETER Noé AAC *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(AAC) BM DALLA VALLE M. (24/06/25) **',checked:true,couleur:'noir'},
+  {col:'b1',ligne:'(AAC) BM JBILOU Soraya 07/06/25 **',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(CS) BM GENTHIER Elsa (ETG) **',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(CS) BM BOURGOING Louisa **',checked:true,couleur:'noir'},
+  {col:'b1',ligne:'@ (CS) BM OUJEBBOUR Mhamed (21/07/26) *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(AAC) BM DA ROS Clea (ETG) (16/03/2027) *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'@ (AAC) BM BERTOLO Hanae (30/12/2027) ***',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BEA BONNIER Teddy (ETG) *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'@ (T) BM TRACARD MAILLE Shanna *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'@ (T) BM GUILLOT Morgane *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'@ (T) BM CHERAK Khadda *',checked:true,couleur:'noir'},
+  {col:'b1',ligne:'@ (T) BM HAJLI Amin *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'@ (T) BM BABA Paul *',checked:true,couleur:'noir'},
+  {col:'b1',ligne:'@ (T) BM EL ASSAL Majdouline *',checked:true,couleur:'noir'},
+  {col:'b1',ligne:'@ (T) BEA LAMBERT Clarisse *',checked:true,couleur:'noir'},
+  {col:'b1',ligne:'@ (T) BM TRACARD BARBET Enzo',checked:true,couleur:'noir'},
+  {col:'b1',ligne:"(T) BEA BANGOURA M'mahawa",checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BEA ABBEKI Yousef',checked:true,couleur:'noir'},
+  {col:'b1',ligne:'(CS) BM (BGN) SAHRAOUI Adam *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BEA (BGN) MENAUGE Jennifer *',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BEA GOBBINI Manon',checked:false,couleur:'noir'},
+  {col:'b1',ligne:'(T) BM ROBIN Stacy',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'DUONG Ly-Lan',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'(T) BM LEDUEY Élise',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'DAROUSY Nadia',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'RENAUDEAU Gaspar',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'DE FARIA Ethan',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'(T) BEA ABBAKI Youssef',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'(T) BM REMIREZ Jérôme',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'(T) BM AHMAD Molham',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'BIRET Lea',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'COCHIN Alix',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'HERBLIN Tom',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'LALICAN Alexis',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'NADI Mohamed',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'POLYCARPE Ambre',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'TOUYA Diane',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'CASALA Elodie',checked:false,couleur:'noir'},
+  {col:'etg',ligne:'MOUSTAFI Jalila (Attente CPF 0676401602)',checked:false,couleur:'noir'},
+  {col:'ann',ligne:'ROUILLON Jean-Michel (Ann)',checked:false,couleur:'noir'},
+  {col:'ann',ligne:"RAMDANI O'kacha (Ann)",checked:false,couleur:'noir'},
+  {col:'ann',ligne:'RIFFLARD Morgan (Ann)',checked:false,couleur:'noir'},
+  {col:'ann',ligne:'AUBLE Sébastien',checked:false,couleur:'noir'},
+  {col:'ann',ligne:'DUREAU Patrice',checked:false,couleur:'noir'},
+  {col:'ann',ligne:'PETITEL Stephane',checked:false,couleur:'noir'},
+  {col:'ann',ligne:'LEROY Guillaume',checked:false,couleur:'noir'},
+  {col:'ann',ligne:'ESTEVES Jean Marc',checked:false,couleur:'noir'},
+  {col:'ann',ligne:'DURAND Matteo',checked:false,couleur:'noir'},
+  {col:'ann',ligne:'LEGOURD Bruno',checked:false,couleur:'noir'},
+];}
+
+load(); render();
+</script>
+</body>
+</html>
