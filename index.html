@@ -379,21 +379,23 @@ function getDefaults() { return [
 //  SUPPORT TACTILE DRAG & DROP
 // ══════════════════════════════════
 function addTouchDrag(row) {
-  let startY, startX, clone, srcIdx;
+  const handle = row.querySelector('.drag-handle');
+  if (!handle) return;
+  let clone = null, dragging = false, srcIdx = null;
 
-  row.addEventListener('touchstart', function(e) {
-    srcIdx = parseInt(this.dataset.idx);
-    startY = e.touches[0].clientY;
-    startX = e.touches[0].clientX;
-    clone = this.cloneNode(true);
-    clone.style.cssText = 'position:fixed;opacity:0.7;pointer-events:none;z-index:999;width:'+this.offsetWidth+'px;background:rgba(200,220,255,0.95);border-radius:8px;padding:4px;';
-    clone.style.left = startX + 'px';
-    clone.style.top = startY + 'px';
+  handle.addEventListener('touchstart', function(e) {
+    dragging = true;
+    srcIdx = parseInt(row.dataset.idx);
+    const touch = e.touches[0];
+    clone = row.cloneNode(true);
+    clone.style.cssText = 'position:fixed;opacity:0.8;pointer-events:none;z-index:999;width:'+row.offsetWidth+'px;background:rgba(200,220,255,0.95);border-radius:8px;padding:4px;left:'+touch.clientX+'px;top:'+touch.clientY+'px;';
     document.body.appendChild(clone);
-    this.style.opacity = '0.4';
-  }, {passive: true});
+    row.style.opacity = '0.4';
+    e.preventDefault();
+  }, {passive: false});
 
-  row.addEventListener('touchmove', function(e) {
+  handle.addEventListener('touchmove', function(e) {
+    if (!dragging) return;
     e.preventDefault();
     const touch = e.touches[0];
     if (clone) {
@@ -403,11 +405,13 @@ function addTouchDrag(row) {
     document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     const el = document.elementFromPoint(touch.clientX, touch.clientY);
     const target = el ? el.closest('.eleve') : null;
-    if (target && target !== this) target.classList.add('drag-over');
+    if (target && target !== row) target.classList.add('drag-over');
   }, {passive: false});
 
-  row.addEventListener('touchend', function(e) {
-    this.style.opacity = '';
+  handle.addEventListener('touchend', function(e) {
+    if (!dragging) return;
+    dragging = false;
+    row.style.opacity = '';
     if (clone) { clone.remove(); clone = null; }
     document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     const touch = e.changedTouches[0];
