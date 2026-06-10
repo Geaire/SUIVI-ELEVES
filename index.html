@@ -338,7 +338,13 @@ function renderCol(col, cid) {
     lbl.className = 'label' + couleurClass;
     typeEl.className = 'eleve-type' + couleurClass;
     bmEl.className = 'eleve-bm' + couleurClass;
-    lbl.textContent = e.ligne;
+    // Afficher uniquement le nom (sans type et BM/BEA)
+    let nomAffiche = e.ligne;
+    const tMatch = nomAffiche.match(/\((T|CS|AAC|PA|BGN)\)/);
+    const bMatch = nomAffiche.match(/\b(BM|BEA)\b/);
+    if (tMatch) nomAffiche = nomAffiche.replace(tMatch[0], '').trim();
+    if (bMatch) nomAffiche = nomAffiche.replace(new RegExp('\\b'+bMatch[1]+'\\b'), '').trim();
+    lbl.textContent = nomAffiche;
     lbl.addEventListener('dblclick', () => openEdit(gi));
 
     // Mini cases Tab/ESys/RDVp
@@ -474,9 +480,17 @@ function openEdit(idx) {
   const ligne = data[idx].ligne;
   const typeMatch = ligne.match(/\((T|CS|AAC|PA|BGN)\)/);
   const bmMatch = ligne.match(/\b(BM|BEA)\b/);
-  document.getElementById('fType').value = typeMatch ? '('+typeMatch[1]+')' : '';
-  document.getElementById('fBM').value = bmMatch ? bmMatch[1] : '';
-  document.getElementById('fNom').value = ligne;
+  const type = typeMatch ? '('+typeMatch[1]+')' : '';
+  const bm = bmMatch ? bmMatch[1] : '';
+  // Extraire seulement le nom en retirant le type et BM/BEA du début
+  let nom = ligne;
+  if (type) nom = nom.replace(type, '').trim();
+  if (bm) nom = nom.replace(new RegExp('\\b'+bm+'\\b'), '').trim();
+  // Nettoyer le @ au début si présent
+  nom = nom.replace(/^@\s*/, '').trim();
+  document.getElementById('fType').value = type;
+  document.getElementById('fBM').value = bm;
+  document.getElementById('fNom').value = nom;
   document.getElementById('fPreview').textContent = ligne;
   document.getElementById('btnDel').style.display = 'inline-block';
   document.getElementById('overlay').classList.add('open');
