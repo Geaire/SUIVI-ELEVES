@@ -57,7 +57,10 @@
   /* BM/BEA */
   .eleve-bm { width: 28px; min-width: 28px; text-align: center; font-size: 11px; color: #444; flex-shrink: 0; margin: 0 4px; }
 
-  .label { font-size: 12px; color: #1a1a1a; line-height: 1.35; flex: 1; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .label { font-size: 12px; color: #1a1a1a; line-height: 1.35; flex: 1; cursor: grab; touch-action: pan-y; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .label:active, .label.grabbing { cursor: grabbing; }
+  .eleve.armed { box-shadow: 0 0 0 2px #4a7fc1 inset; border-radius: 6px; }
+  .drag-ghost { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 9999; opacity: 0.9; background: rgba(200,220,255,0.97); border-radius: 8px; padding: 3px 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
   .label.rouge { color: #c0392b; font-weight: 500; }
   .label.vert  { color: #1a7a2e; font-weight: 500; }
 
@@ -112,7 +115,6 @@
     <div class="col col-b2">
       <div class="col-title" contenteditable="true" onblur="saveTitle(this,'t_b2')" id="t_b2">B+ / AE Ext.</div>
       <div class="col-header">
-        <div class="col-h-handle"></div>
         <div class="col-h-cb"></div>
         <div class="col-h-type">Filière</div>
         <div class="col-h-bm">Boîte</div>
@@ -127,12 +129,11 @@
         </div>
         <div class="col-h-cbts"></div>
       </div>
-      <div id="col_b2" ondragover="onDragOver(event)" ondrop="onDrop(event,'b2')"></div>
+      <div id="col_b2"></div>
     </div>
     <div class="col col-ann">
       <div class="col-title" contenteditable="true" onblur="saveTitle(this,'t_ann')" id="t_ann">Dossiers &lt; 2020 Annulations (Poss)</div>
       <div class="col-header">
-        <div class="col-h-handle"></div>
         <div class="col-h-cb"></div>
         <div class="col-h-type">Filière</div>
         <div class="col-h-bm">Boîte</div>
@@ -147,14 +148,13 @@
         </div>
         <div class="col-h-cbts"></div>
       </div>
-      <div id="col_ann" ondragover="onDragOver(event)" ondrop="onDrop(event,'ann')"></div>
+      <div id="col_ann"></div>
     </div>
   </div>
   <div class="col-wrap">
     <div class="col col-b1">
       <div class="col-title" contenteditable="true" onblur="saveTitle(this,'t_b1')" id="t_b1">B1</div>
       <div class="col-header">
-        <div class="col-h-handle"></div>
         <div class="col-h-cb"></div>
         <div class="col-h-type">Filière</div>
         <div class="col-h-bm">Boîte</div>
@@ -169,12 +169,11 @@
         </div>
         <div class="col-h-cbts"></div>
       </div>
-      <div id="col_b1" ondragover="onDragOver(event)" ondrop="onDrop(event,'b1')"></div>
+      <div id="col_b1"></div>
     </div>
     <div class="col col-etg">
       <div class="col-title" contenteditable="true" onblur="saveTitle(this,'t_etg')" id="t_etg">ETG</div>
       <div class="col-header">
-        <div class="col-h-handle"></div>
         <div class="col-h-cb"></div>
         <div class="col-h-type">Filière</div>
         <div class="col-h-bm">Boîte</div>
@@ -189,7 +188,7 @@
         </div>
         <div class="col-h-cbts"></div>
       </div>
-      <div id="col_etg" ondragover="onDragOver(event)" ondrop="onDrop(event,'etg')"></div>
+      <div id="col_etg"></div>
     </div>
   </div>
 </div>
@@ -328,15 +327,7 @@ function renderCol(col, cid) {
     }
     const row = document.createElement('div');
     row.className = 'eleve' + (e.checked ? ' checked' : '');
-    row.draggable = true;
     row.dataset.idx = gi;
-    row.addEventListener('dragstart', onDragStart);
-    row.addEventListener('dragend', onDragEnd);
-
-    // Handle
-    const h = document.createElement('span');
-    h.className = 'drag-handle';
-    h.textContent = '⠿';
 
     // Checkbox coché/barré
     const cb = document.createElement('input');
@@ -369,7 +360,12 @@ function renderCol(col, cid) {
     if (tMatch) nomAffiche = nomAffiche.replace(tMatch[0], '').trim();
     if (bMatch) nomAffiche = nomAffiche.replace(new RegExp('\\b'+bMatch[1]+'\\b'), '').trim();
     lbl.textContent = nomAffiche;
+    lbl.title = 'Glissez le nom pour le déplacer · double-clic pour éditer';
     lbl.addEventListener('dblclick', () => openEdit(gi));
+    lbl.addEventListener('pointerdown', ev => dragPointerDown(ev, gi));
+    lbl.addEventListener('pointermove', dragPointerMove);
+    lbl.addEventListener('pointerup', dragPointerUp);
+    lbl.addEventListener('pointercancel', dragPointerUp);
 
     // Mini cases Tab/ESys/RDVp
     const miniChecks = document.createElement('div');
@@ -392,7 +388,6 @@ function renderCol(col, cid) {
       cbts.appendChild(btn);
     });
 
-    row.appendChild(h);
     row.appendChild(cb);
     row.appendChild(typeEl);
     row.appendChild(bmEl);
@@ -401,7 +396,6 @@ function renderCol(col, cid) {
     row.appendChild(cbts);
     c.appendChild(row);
 
-    addTouchDrag(row);
   });
 }
 
@@ -412,66 +406,98 @@ function render() {
   renderCol('ann','col_ann');
 }
 
-function onDragStart(e) { dragSrcIdx = parseInt(this.dataset.idx); this.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
-function onDragEnd() { this.classList.remove('dragging'); document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); }
-function onDragOver(e) { e.preventDefault(); const row = e.target.closest('.eleve'); document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); if (row) row.classList.add('drag-over'); }
-function onDrop(e, col) {
-  e.preventDefault(); if (dragSrcIdx === null) return;
-  const row = e.target.closest('.eleve');
-  let ti = row ? parseInt(row.dataset.idx) : data.reduce((l,x,i) => x.col === col ? i : l, -1) + 1;
-  const item = data.splice(dragSrcIdx, 1)[0]; item.col = col;
-  const nt = ti > dragSrcIdx ? ti - 1 : ti; data.splice(nt, 0, item);
-  dragSrcIdx = null; saveLocal(); render();
+let drag = null;
+const LONG_PRESS_MS = 350;
+const MOVE_CANCEL = 10;
+const MOVE_START_MOUSE = 8;
+
+function preventTouchScroll(e) { if (drag && drag.active) e.preventDefault(); }
+
+function dragPointerDown(e, gi) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const row = e.currentTarget.closest('.eleve');
+  drag = { gi, row, label: e.currentTarget, x0: e.clientX, y0: e.clientY,
+           lastX: e.clientX, lastY: e.clientY, active: false, over: null, ghost: null,
+           touch: (e.pointerType !== 'mouse'), timer: null };
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+  if (drag.touch) drag.timer = setTimeout(() => { if (drag) armDrag(); }, LONG_PRESS_MS);
 }
 
-function addTouchDrag(row) {
-  const handle = row.querySelector('.drag-handle');
-  if (!handle) return;
-  let clone = null, dragging = false, srcIdx = null;
+function armDrag() {
+  if (!drag || drag.active) return;
+  drag.active = true;
+  drag.row.classList.add('dragging', 'armed');
+  drag.label.classList.add('grabbing');
+  document.addEventListener('touchmove', preventTouchScroll, { passive: false });
+  if (navigator.vibrate) { try { navigator.vibrate(25); } catch (_) {} }
+  const g = drag.row.cloneNode(true);
+  g.classList.add('drag-ghost');
+  g.style.width = drag.row.offsetWidth + 'px';
+  document.body.appendChild(g);
+  drag.ghost = g;
+  moveGhost(drag.lastX, drag.lastY);
+}
 
-  handle.addEventListener('touchstart', function(e) {
-    dragging = true;
-    srcIdx = parseInt(row.dataset.idx);
-    const touch = e.touches[0];
-    clone = row.cloneNode(true);
-    clone.style.cssText = 'position:fixed;opacity:0.8;pointer-events:none;z-index:999;width:'+row.offsetWidth+'px;background:rgba(200,220,255,0.95);border-radius:8px;padding:4px;left:'+touch.clientX+'px;top:'+touch.clientY+'px;';
-    document.body.appendChild(clone);
-    row.style.opacity = '0.4';
-    e.preventDefault();
-  }, {passive: false});
+function moveGhost(x, y) {
+  if (drag && drag.ghost) { drag.ghost.style.left = (x + 10) + 'px'; drag.ghost.style.top = (y + 6) + 'px'; }
+}
 
-  handle.addEventListener('touchmove', function(e) {
-    if (!dragging) return;
-    e.preventDefault();
-    const touch = e.touches[0];
-    if (clone) { clone.style.left = touch.clientX - 20 + 'px'; clone.style.top = touch.clientY - 20 + 'px'; }
-    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
-    const target = el ? el.closest('.eleve') : null;
-    if (target && target !== row) target.classList.add('drag-over');
-  }, {passive: false});
+function dragPointerMove(e) {
+  if (!drag) return;
+  drag.lastX = e.clientX; drag.lastY = e.clientY;
+  if (!drag.active) {
+    const dist = Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0);
+    if (drag.touch) { if (dist > MOVE_CANCEL) cancelDrag(); return; }
+    if (dist < MOVE_START_MOUSE) return;
+    armDrag();
+  }
+  e.preventDefault();
+  moveGhost(e.clientX, e.clientY);
+  drag.ghost.style.display = 'none';
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  drag.ghost.style.display = '';
+  const tgt = (el && el.closest) ? el.closest('.eleve') : null;
+  const next = (tgt && tgt !== drag.row) ? tgt : null;
+  if (next !== drag.over) {
+    if (drag.over) drag.over.classList.remove('drag-over');
+    drag.over = next;
+    if (drag.over) drag.over.classList.add('drag-over');
+  }
+}
 
-  handle.addEventListener('touchend', function(e) {
-    if (!dragging) return;
-    dragging = false;
-    row.style.opacity = '';
-    if (clone) { clone.remove(); clone = null; }
-    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-    const touch = e.changedTouches[0];
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
-    const target = el ? el.closest('.eleve') : null;
-    const colEl = el ? el.closest('[id^="col_"]') : null;
-    const col = colEl ? colEl.id.replace('col_','') : data[srcIdx].col;
-    let ti = target ? parseInt(target.dataset.idx) : data.reduce((l,x,i) => x.col === col ? i : l, -1) + 1;
-    if (srcIdx !== null && ti !== srcIdx) {
-      const item = data.splice(srcIdx, 1)[0];
-      item.col = col;
-      const nt = ti > srcIdx ? ti - 1 : ti;
-      data.splice(nt, 0, item);
-      saveLocal(); render();
-    }
-    srcIdx = null;
-  }, {passive: true});
+function cleanupDrag(d) {
+  if (!d) return;
+  if (d.timer) clearTimeout(d.timer);
+  if (d.ghost) d.ghost.remove();
+  if (d.row) d.row.classList.remove('dragging', 'armed');
+  if (d.label) d.label.classList.remove('grabbing');
+  if (d.over) d.over.classList.remove('drag-over');
+  document.removeEventListener('touchmove', preventTouchScroll, { passive: false });
+}
+
+function cancelDrag() { const d = drag; drag = null; cleanupDrag(d); }
+
+function dragPointerUp(e) {
+  if (!drag) return;
+  const d = drag; drag = null;
+  const wasActive = d.active;
+  cleanupDrag(d);
+  if (!wasActive) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const tgt = (el && el.closest) ? el.closest('.eleve') : null;
+  const colEl = (el && el.closest) ? el.closest('[id^="col_"]') : null;
+  const col = colEl ? colEl.id.replace('col_', '') : data[d.gi].col;
+  let ti;
+  if (tgt && tgt !== d.row) ti = parseInt(tgt.dataset.idx);
+  else if (colEl) ti = data.reduce((l, x, i) => x.col === col ? i : l, -1) + 1;
+  else return;
+  const src = d.gi;
+  if (ti === src) return;
+  const item = data.splice(src, 1)[0];
+  item.col = col;
+  const nt = ti > src ? ti - 1 : ti;
+  data.splice(nt, 0, item);
+  saveLocal(); render();
 }
 
 function buildLigne() {
