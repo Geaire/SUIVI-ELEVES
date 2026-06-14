@@ -407,46 +407,36 @@ function render() {
 }
 
 let drag = null;
-const LONG_PRESS_MS = 350;
-const MOVE_CANCEL = 10;
-const MOVE_START_MOUSE = 8;
-
-function preventTouchScroll(e) { if (drag && (drag.active || drag.scrolling)) e.preventDefault(); }
+const DRAG_START = 8;
 
 function dragPointerDown(e, gi) {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   const row = e.currentTarget.closest('.eleve');
   drag = { gi, row, label: e.currentTarget, x0: e.clientX, y0: e.clientY,
-           lastX: e.clientX, lastY: e.clientY, active: false, scrolling: false,
-           over: null, ghost: null, touch: (e.pointerType !== 'mouse'), timer: null };
+           lastX: e.clientX, lastY: e.clientY, active: false, over: null, ghost: null };
   try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
-  document.addEventListener('touchmove', preventTouchScroll, { passive: false });
-  if (drag.touch) drag.timer = setTimeout(() => { if (drag && !drag.scrolling) armDrag(); }, LONG_PRESS_MS);
 }
 
-function armDrag() {
-  if (!drag || drag.active) return;
-  drag.active = true;
-  drag.row.classList.add('dragging', 'armed');
-  drag.label.classList.add('grabbing');
-  if (navigator.vibrate) { try { navigator.vibrate(25); } catch (_) {} }
-  const g = drag.row.cloneNode(true);
-  g.classList.add('drag-ghost');
-  g.style.width = drag.row.offsetWidth + 'px';
-  document.body.appendChild(g);
-  drag.ghost = g;
-  moveGhost(drag.lastX, drag.lastY);
-  updateOver(drag.lastX, drag.lastY);
-}
-
-function moveGhost(x, y) {
-  if (drag && drag.ghost) { drag.ghost.style.left = (x + 10) + 'px'; drag.ghost.style.top = (y + 6) + 'px'; }
-}
-
-function updateOver(x, y) {
-  if (drag.ghost) drag.ghost.style.display = 'none';
-  const el = document.elementFromPoint(x, y);
-  if (drag.ghost) drag.ghost.style.display = '';
+function dragPointerMove(e) {
+  if (!drag) return;
+  if (!drag.active) {
+    if (Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0) < DRAG_START) return;
+    drag.active = true;
+    drag.row.classList.add('dragging');
+    drag.label.classList.add('grabbing');
+    const g = drag.row.cloneNode(true);
+    g.classList.add('drag-ghost');
+    g.style.width = drag.row.offsetWidth + 'px';
+    document.body.appendChild(g);
+    drag.ghost = g;
+  }
+  e.preventDefault();
+  drag.lastX = e.clientX; drag.lastY = e.clientY;
+  drag.ghost.style.left = (e.clientX + 10) + 'px';
+  drag.ghost.style.top = (e.clientY + 6) + 'px';
+  drag.ghost.style.display = 'none';
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  drag.ghost.style.display = '';
   const tgt = (el && el.closest) ? el.closest('.eleve') : null;
   const next = (tgt && tgt !== drag.row) ? tgt : null;
   if (next !== drag.over) {
@@ -456,62 +446,24 @@ function updateOver(x, y) {
   }
 }
 
-function dragPointerMove(e) {
-  if (!drag) return;
-  // mode défilement manuel (le doigt a bougé avant l'appui long)
-  if (drag.scrolling) {
-    e.preventDefault();
-    window.scrollBy(0, drag.lastY - e.clientY);
-    drag.lastX = e.clientX; drag.lastY = e.clientY;
-    return;
-  }
-  if (!drag.active) {
-    const dist = Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0);
-    if (drag.touch) {
-      if (dist > MOVE_CANCEL) {           // bascule en défilement
-        if (drag.timer) clearTimeout(drag.timer);
-        drag.scrolling = true;
-        window.scrollBy(0, drag.lastY - e.clientY);
-        drag.lastX = e.clientX; drag.lastY = e.clientY;
-        e.preventDefault();
-      }
-      return;
-    }
-    if (dist < MOVE_START_MOUSE) return;   // souris : démarre au seuil
-    armDrag();
-  }
-  e.preventDefault();
-  drag.lastX = e.clientX; drag.lastY = e.clientY;
-  moveGhost(e.clientX, e.clientY);
-  updateOver(e.clientX, e.clientY);
-}
-
-function cleanupDrag(d) {
-  if (!d) return;
-  if (d.timer) clearTimeout(d.timer);
-  if (d.ghost) d.ghost.remove();
-  if (d.row) d.row.classList.remove('dragging', 'armed');
-  if (d.label) d.label.classList.remove('grabbing');
-  if (d.over) d.over.classList.remove('drag-over');
-  document.removeEventListener('touchmove', preventTouchScroll, { passive: false });
-}
-
 function dragPointerUp(e) {
   if (!drag) return;
   const d = drag; drag = null;
-  const wasActive = d.active, over = d.over;
-  cleanupDrag(d);
-  if (!wasActive) return;          // simple appui ou défilement : aucun déplacement
+  if (d.ghost) d.ghost.remove();
+  d.row.classList.remove('dragging');
+  d.label.classList.remove('grabbing');
+  if (d.over) d.over.classList.remove('drag-over');
+  if (!d.active) return;
   const src = d.gi;
   let ti, col;
-  if (over) {                      // déposé sur une ligne -> s'insère au-dessus d'elle
-    ti = parseInt(over.dataset.idx);
+  if (d.over) {
+    ti = parseInt(d.over.dataset.idx);
     col = data[ti].col;
-  } else {                         // pas de ligne ciblée : autoriser seulement un changement de colonne
+  } else {
     const el = document.elementFromPoint(d.lastX, d.lastY);
     const colEl = (el && el.closest) ? el.closest('[id^="col_"]') : null;
     const dropCol = colEl ? colEl.id.replace('col_', '') : null;
-    if (!dropCol || dropCol === data[src].col) return;   // même colonne sans cible -> on ne bouge pas
+    if (!dropCol || dropCol === data[src].col) return;
     col = dropCol;
     ti = data.reduce((l, x, i) => x.col === col ? i : l, -1) + 1;
   }

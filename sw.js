@@ -1,4 +1,4 @@
-const CACHE = 'ae-v16';
+const CACHE = 'ae-v17';
 const ASSETS = [
   './',
   './index.html',
