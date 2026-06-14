@@ -57,7 +57,7 @@
   /* BM/BEA */
   .eleve-bm { width: 28px; min-width: 28px; text-align: center; font-size: 11px; color: #444; flex-shrink: 0; margin: 0 4px; }
 
-  .label { font-size: 12px; color: #1a1a1a; line-height: 1.35; flex: 1; cursor: grab; touch-action: pan-y; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .label { font-size: 12px; color: #1a1a1a; line-height: 1.35; flex: 1; cursor: grab; touch-action: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .label:active, .label.grabbing { cursor: grabbing; }
   .eleve.armed { box-shadow: 0 0 0 2px #4a7fc1 inset; border-radius: 6px; }
   .drag-ghost { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 9999; opacity: 0.9; background: rgba(200,220,255,0.97); border-radius: 8px; padding: 3px 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
@@ -411,16 +411,17 @@ const LONG_PRESS_MS = 350;
 const MOVE_CANCEL = 10;
 const MOVE_START_MOUSE = 8;
 
-function preventTouchScroll(e) { if (drag && drag.active) e.preventDefault(); }
+function preventTouchScroll(e) { if (drag && (drag.active || drag.scrolling)) e.preventDefault(); }
 
 function dragPointerDown(e, gi) {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   const row = e.currentTarget.closest('.eleve');
   drag = { gi, row, label: e.currentTarget, x0: e.clientX, y0: e.clientY,
-           lastX: e.clientX, lastY: e.clientY, active: false, over: null, ghost: null,
-           touch: (e.pointerType !== 'mouse'), timer: null };
+           lastX: e.clientX, lastY: e.clientY, active: false, scrolling: false,
+           over: null, ghost: null, touch: (e.pointerType !== 'mouse'), timer: null };
   try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
-  if (drag.touch) drag.timer = setTimeout(() => { if (drag) armDrag(); }, LONG_PRESS_MS);
+  document.addEventListener('touchmove', preventTouchScroll, { passive: false });
+  if (drag.touch) drag.timer = setTimeout(() => { if (drag && !drag.scrolling) armDrag(); }, LONG_PRESS_MS);
 }
 
 function armDrag() {
@@ -428,7 +429,6 @@ function armDrag() {
   drag.active = true;
   drag.row.classList.add('dragging', 'armed');
   drag.label.classList.add('grabbing');
-  document.addEventListener('touchmove', preventTouchScroll, { passive: false });
   if (navigator.vibrate) { try { navigator.vibrate(25); } catch (_) {} }
   const g = drag.row.cloneNode(true);
   g.classList.add('drag-ghost');
@@ -436,26 +436,17 @@ function armDrag() {
   document.body.appendChild(g);
   drag.ghost = g;
   moveGhost(drag.lastX, drag.lastY);
+  updateOver(drag.lastX, drag.lastY);
 }
 
 function moveGhost(x, y) {
   if (drag && drag.ghost) { drag.ghost.style.left = (x + 10) + 'px'; drag.ghost.style.top = (y + 6) + 'px'; }
 }
 
-function dragPointerMove(e) {
-  if (!drag) return;
-  drag.lastX = e.clientX; drag.lastY = e.clientY;
-  if (!drag.active) {
-    const dist = Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0);
-    if (drag.touch) { if (dist > MOVE_CANCEL) cancelDrag(); return; }
-    if (dist < MOVE_START_MOUSE) return;
-    armDrag();
-  }
-  e.preventDefault();
-  moveGhost(e.clientX, e.clientY);
-  drag.ghost.style.display = 'none';
-  const el = document.elementFromPoint(e.clientX, e.clientY);
-  drag.ghost.style.display = '';
+function updateOver(x, y) {
+  if (drag.ghost) drag.ghost.style.display = 'none';
+  const el = document.elementFromPoint(x, y);
+  if (drag.ghost) drag.ghost.style.display = '';
   const tgt = (el && el.closest) ? el.closest('.eleve') : null;
   const next = (tgt && tgt !== drag.row) ? tgt : null;
   if (next !== drag.over) {
@@ -463,6 +454,36 @@ function dragPointerMove(e) {
     drag.over = next;
     if (drag.over) drag.over.classList.add('drag-over');
   }
+}
+
+function dragPointerMove(e) {
+  if (!drag) return;
+  // mode défilement manuel (le doigt a bougé avant l'appui long)
+  if (drag.scrolling) {
+    e.preventDefault();
+    window.scrollBy(0, drag.lastY - e.clientY);
+    drag.lastX = e.clientX; drag.lastY = e.clientY;
+    return;
+  }
+  if (!drag.active) {
+    const dist = Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0);
+    if (drag.touch) {
+      if (dist > MOVE_CANCEL) {           // bascule en défilement
+        if (drag.timer) clearTimeout(drag.timer);
+        drag.scrolling = true;
+        window.scrollBy(0, drag.lastY - e.clientY);
+        drag.lastX = e.clientX; drag.lastY = e.clientY;
+        e.preventDefault();
+      }
+      return;
+    }
+    if (dist < MOVE_START_MOUSE) return;   // souris : démarre au seuil
+    armDrag();
+  }
+  e.preventDefault();
+  drag.lastX = e.clientX; drag.lastY = e.clientY;
+  moveGhost(e.clientX, e.clientY);
+  updateOver(e.clientX, e.clientY);
 }
 
 function cleanupDrag(d) {
@@ -475,23 +496,25 @@ function cleanupDrag(d) {
   document.removeEventListener('touchmove', preventTouchScroll, { passive: false });
 }
 
-function cancelDrag() { const d = drag; drag = null; cleanupDrag(d); }
-
 function dragPointerUp(e) {
   if (!drag) return;
   const d = drag; drag = null;
-  const wasActive = d.active;
+  const wasActive = d.active, over = d.over;
   cleanupDrag(d);
-  if (!wasActive) return;
-  const el = document.elementFromPoint(e.clientX, e.clientY);
-  const tgt = (el && el.closest) ? el.closest('.eleve') : null;
-  const colEl = (el && el.closest) ? el.closest('[id^="col_"]') : null;
-  const col = colEl ? colEl.id.replace('col_', '') : data[d.gi].col;
-  let ti;
-  if (tgt && tgt !== d.row) ti = parseInt(tgt.dataset.idx);
-  else if (colEl) ti = data.reduce((l, x, i) => x.col === col ? i : l, -1) + 1;
-  else return;
+  if (!wasActive) return;          // simple appui ou défilement : aucun déplacement
   const src = d.gi;
+  let ti, col;
+  if (over) {                      // déposé sur une ligne -> s'insère au-dessus d'elle
+    ti = parseInt(over.dataset.idx);
+    col = data[ti].col;
+  } else {                         // pas de ligne ciblée : autoriser seulement un changement de colonne
+    const el = document.elementFromPoint(d.lastX, d.lastY);
+    const colEl = (el && el.closest) ? el.closest('[id^="col_"]') : null;
+    const dropCol = colEl ? colEl.id.replace('col_', '') : null;
+    if (!dropCol || dropCol === data[src].col) return;   // même colonne sans cible -> on ne bouge pas
+    col = dropCol;
+    ti = data.reduce((l, x, i) => x.col === col ? i : l, -1) + 1;
+  }
   if (ti === src) return;
   const item = data.splice(src, 1)[0];
   item.col = col;
